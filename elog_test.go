@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	RegDate         = `[0-9][0-9][0-9][0-9]/[0-9][0-9]/[0-9][0-9]`
-	RegTime         = `[0-9][0-9]:[0-9][0-9]:[0-9][0-9]`
-	RegMicroseconds = `\.[0-9][0-9][0-9][0-9][0-9][0-9]`
-	RegLabel        = `\x1b\[\d;[0-9][0-9];[0-9][0-9]m(\s+)(\w+)(\s+)\x1b\[0m\s*`
-	RegLine         = `(60|62) |`
+	RegDate         = `[0-9][0-9][0-9][0-9]/[0-9][0-9]/[0-9][0-9]\s*`
+	RegTime         = `[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\s*`
+	RegMicroseconds = `\.[0-9][0-9][0-9][0-9][0-9][0-9]\s*`
+	RegLevel        = `\x1b\[\d;[0-9][0-9];[0-9][0-9]m(\s+)(\w+)(\s+)\x1b\[0m\s*`
+	RegPrefix       = TEST_PREFIX + " "
+	RegLine         = `(\d+)\s*`
 	RegLongfile     = `.*/[A-Za-z0-9_\-]+\.go:` + RegLine
 	RegShortfile    = `[A-Za-z0-9_\-]+\.go:` + RegLine
 )
@@ -25,6 +26,7 @@ type in struct {
 	level  logLevel
 	flag   int
 	prefix string
+	order  []logOrder
 }
 type tester struct {
 	in
@@ -32,90 +34,101 @@ type tester struct {
 }
 
 const (
-	TEST_PREFIX = "PREFIX "
+	TEST_PREFIX = "PREFIX"
 )
 
 var tests = []tester{
 	{
-		in{"t1", ErrorLevel, 0, ""},
-		RegLabel},
+		in{name: "t1", level: ErrorLevel, flag: 0},
+		""},
 	{
-		in{"t2", DebugLevel, 0, TEST_PREFIX},
-		RegLabel},
+		in{name: "t2", level: DebugLevel, flag: 0, prefix: TEST_PREFIX},
+		""},
 	{
-		in{"t3", InfoLevel, Ldate, ""},
-		RegDate + " " + RegLabel + " "},
+		in{name: "t3", level: InfoLevel, flag: Lmsgprefix, prefix: TEST_PREFIX},
+		RegPrefix},
 	{
-		in{"t4", TraceLevel, Ltime, ""},
-		RegTime + " " + RegLabel + " "},
+		in{name: "t4", level: InfoLevel, flag: Llevel},
+		RegLevel},
 	{
-		in{"t5", WarnLevel, Ltime | Lmsgprefix, TEST_PREFIX},
-		RegTime + " " + RegLabel + TEST_PREFIX},
+		in{name: "t5", level: InfoLevel, flag: Ldate},
+		RegDate},
 	{
-		in{"t6", InfoLevel, Ltime | Lmicroseconds, TEST_PREFIX},
-		RegTime + RegMicroseconds + " " + RegLabel},
+		in{name: "t6", level: TraceLevel, flag: Ltime},
+		RegTime},
+	{
+		in{name: "t7", level: WarnLevel, flag: Ltime | Lmsgprefix, prefix: TEST_PREFIX},
+		RegTime + RegPrefix},
+	{
+		in{name: "t8", level: InfoLevel, flag: Ltime | Lmicroseconds, prefix: TEST_PREFIX},
+		RegTime + RegMicroseconds},
 	{ // microsec implies time
-		in{"t7", InfoLevel, Lmicroseconds, ""},
-		RegTime + RegMicroseconds + " " + RegLabel},
+		in{name: "t9", level: InfoLevel, flag: Lmicroseconds},
+		RegTime + RegMicroseconds + " "},
 	{
-		in{"t8", ErrorLevel, Llongfile, ""},
-		RegLabel + RegLongfile},
+		in{name: "t10", level: ErrorLevel, flag: Llongfile},
+		RegLongfile},
 	{
-		in{"t9", ErrorLevel, Lshortfile, ""},
-		RegLabel + RegShortfile},
+		in{name: "t11", level: ErrorLevel, flag: Lshortfile},
+		RegShortfile},
 	{ // shortfile overrides longfile
-		in{"t10", ErrorLevel, Llongfile | Lshortfile, ""},
-		RegLabel + RegShortfile},
+		in{name: "t11", level: ErrorLevel, flag: Llongfile | Lshortfile},
+		RegShortfile},
 
-	{in{"t11", ErrorLevel, Ldate | Ltime | Lmicroseconds | Llongfile, TEST_PREFIX}, RegDate + " " + RegTime + RegMicroseconds + " " + RegLabel + RegLongfile},
-	{in{"t12", ErrorLevel, Ldate | Ltime | Lmicroseconds | Lshortfile, TEST_PREFIX}, RegDate + " " + RegTime + RegMicroseconds + " " + RegLabel + RegShortfile},
-	{in{"t13", ErrorLevel, Ldate | Ltime | Lmicroseconds | Llongfile | Lmsgprefix, TEST_PREFIX}, RegDate + " " + RegTime + RegMicroseconds + " " + RegLabel + RegLongfile + TEST_PREFIX},
-	{in{"t14", ErrorLevel, Ldate | Ltime | Lmicroseconds | Lshortfile | Lmsgprefix, TEST_PREFIX}, RegDate + " " + RegTime + RegMicroseconds + " " + RegLabel + RegLongfile + TEST_PREFIX},
+	{in{name: "t12", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | Llongfile, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegLongfile},
+	{in{name: "t13", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | Lshortfile, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegShortfile},
+	{in{name: "t14", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | Llongfile | Lmsgprefix, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegLongfile + RegPrefix},
+	{in{name: "t15", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | Lshortfile | Lmsgprefix, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegShortfile + RegPrefix},
+
+	{ // test order
+		in{name: "t16", level: ErrorLevel, flag: Lmsgprefix | Ldate | Lshortfile, prefix: TEST_PREFIX, order: []logOrder{OrderLevel, OrderPrefix, OrderDate, OrderPath}},
+		RegPrefix + RegDate + RegShortfile},
+
+	{
+		in{name: "t17", level: ErrorLevel, flag: Lmsgprefix | Ldate | Lshortfile | Llevel, prefix: TEST_PREFIX, order: []logOrder{OrderLevel, OrderPrefix, OrderDate, OrderPath}},
+		RegLevel + RegPrefix + RegDate + RegShortfile},
 }
 
-func testPrint(t *testing.T, name string, level logLevel, flag int, prefix string, pattern string, useFormat bool) {
-	buf := new(bytes.Buffer)
-	SetOutput(buf)
-	SetLevel(level)
-	SetFlag(flag)
-	SetPrefix(prefix)
+func testPrint(t *testing.T, name string, level logLevel, flag int, prefix string, order []logOrder, pattern string, useFormat bool) {
+	var buf bytes.Buffer
+	l := New(&buf, level, OFlag(flag), OPrefix(prefix), OOrder(order))
 	if useFormat {
 		switch level {
 		case ErrorLevel:
-			Error("hello", 18, "word")
+			l.Error("hello", 18, "word")
 		case WarnLevel:
-			Warn("hello", 18, "word")
+			l.Warn("hello", 18, "word")
 		case InfoLevel:
-			Info("hello", 18, "word")
+			l.Info("hello", 18, "word")
 		case DebugLevel:
-			Debug("hello", 18, "word")
+			l.Debug("hello", 18, "word")
 		case TraceLevel:
-			Trace("hello", 18, "word")
+			l.Trace("hello", 18, "word")
 		}
 	} else {
 		switch level {
 		case ErrorLevel:
-			Errorf("hello %d word", 18)
+			l.Errorf("hello %d word", 18)
 		case WarnLevel:
-			Warnf("hello %d word", 18)
+			l.Warnf("hello %d word", 18)
 		case InfoLevel:
-			Infof("hello %d word", 18)
+			l.Infof("hello %d word", 18)
 		case DebugLevel:
-			Debugf("hello %d word", 18)
+			l.Debugf("hello %d word", 18)
 		case TraceLevel:
-			Tracef("hello %d word", 18)
+			l.Tracef("hello %d word", 18)
 		}
 	}
 
 	got := buf.String()
 	got = got[0 : len(got)-1]
-	pattern = "^" + pattern + "hello 18 word$"
+	pattern = `^` + pattern + `hello 18 word\s*$`
 	matched, err := regexp.MatchString(pattern, got)
 	if err != nil {
-		t.Errorf("%s: pattern did not compile: %q", name, err)
+		t.Errorf(`%s: pattern did not compile: %q`, name, err)
 	}
 	if !matched {
-		t.Errorf("%s: log output want: %s[ %q ]%s , got %s[ %q ]%s", name, blue, pattern, color_, green, got, color_)
+		t.Errorf(`%s: log output want: %s[ %q ]%s , got %s[ %q ]%s`, name, blue, pattern, color_, green, got, color_)
 	}
 	SetOutput(os.Stderr)
 }
@@ -128,8 +141,8 @@ func TestDefault(t *testing.T) {
 
 func TestAll(t *testing.T) {
 	for _, tc := range tests {
-		testPrint(t, tc.name, tc.level, tc.flag, tc.prefix, tc.pattern, true)
-		testPrint(t, tc.name, tc.level, tc.flag, tc.prefix, tc.pattern, false)
+		testPrint(t, tc.name, tc.level, tc.flag, tc.prefix, tc.order, tc.pattern, true)
+		testPrint(t, tc.name, tc.level, tc.flag, tc.prefix, tc.order, tc.pattern, false)
 	}
 }
 
@@ -137,9 +150,10 @@ func TestOut(t *testing.T) {
 	const testString = "test"
 	var b bytes.Buffer
 	l := New(&b, InfoLevel)
+	l.AddFlag(Llevel)
 	l.Warn(testString)
 	if expect := _WarnLabel + testString + "\n"; b.String() != expect {
-		t.Errorf("log output should match %q is %q", expect, b.String())
+		t.Errorf("log output should match %q, but got %q", expect, b.String())
 	}
 }
 
@@ -153,19 +167,37 @@ func TestOutRace(t *testing.T) {
 	}
 }
 
-func TestFlagAndPrefixSetting(t *testing.T) {
+func TestFlagSetting(t *testing.T) {
 	var b bytes.Buffer
-	l := New(&b, InfoLevel, OFlag(LstdFlags), OPrefix("Test: "))
+	l := New(&b, InfoLevel, OFlag(LstdFlags))
 
 	f := l.Flag()
 	if f != LstdFlags {
 		t.Errorf("Flags 1: expected %x got %x", LstdFlags, f)
 	}
+
 	l.SetFlag(f | Lmicroseconds)
 	f = l.Flag()
 	if f != LstdFlags|Lmicroseconds {
 		t.Errorf("Flags 2: expected %x got %x", LstdFlags|Lmicroseconds, f)
 	}
+
+	l.AddFlag(Lmsgcolor)
+	f = l.Flag()
+	if f != LstdFlags|Lmicroseconds|Lmsgcolor {
+		t.Errorf("Flags 3: expected %x got %x", LstdFlags|Lmicroseconds|Lmsgcolor, f)
+	}
+
+	l.SubFlag(Lmsgcolor)
+	f = l.Flag()
+	if f != LstdFlags|Lmicroseconds {
+		t.Errorf("Flags 4: expected %x got %x", LstdFlags|Lmicroseconds, f)
+	}
+}
+
+func TestPrefixSetting(t *testing.T) {
+	var b bytes.Buffer
+	l := New(&b, InfoLevel, OFlag(LstdFlags|Lmsgprefix), OPrefix("Test: "))
 
 	p := l.Prefix()
 	if p != "Test: " {
@@ -178,22 +210,79 @@ func TestFlagAndPrefixSetting(t *testing.T) {
 	}
 
 	l.Warn("test string")
-	pattern := "^Boii: " + RegDate + " " + RegTime + RegMicroseconds + " " + RegLabel + RegShortfile + "test string\n"
-	matched, err := regexp.Match(pattern, b.Bytes())
+	pattern := "^" + RegDate + RegTime + RegLevel + RegShortfile + "Boii: " + "test string\n$"
+	got := b.Bytes()
+	matched, err := regexp.Match(pattern, got)
 	if err != nil {
 		t.Fatalf("pattern %q did not compile: %s", pattern, err)
 	}
 	if !matched {
-		t.Errorf(`message did not match pattern. Message: "test string" , Pattern: %q`, pattern)
+		t.Errorf("message did not match pattern. \nMessage: `test string`, \nPattern: %q, \ngot: %q", pattern, got)
+	}
+}
+
+func TestOrderSetting(t *testing.T) {
+	var b bytes.Buffer
+	l := New(&b, InfoLevel)
+
+	o := l.Order()
+	if len(o) != 0 {
+		t.Errorf("Order1: expected 0 got %q", o)
+	}
+
+	l.SetOrder(OrderLevel, OrderTime, OrderDate)
+	o = l.Order()
+	if len(o) != 3 {
+		t.Errorf("Order2: expected 3 got %q", o)
+	}
+
+	l.Warn("test string")
+	pattern := "test string\n" // 没有设置 flag 时，设置 order 没有意义
+	got := b.Bytes()
+	b.Reset()
+	matched, err := regexp.Match(pattern, got)
+	if err != nil {
+		t.Fatalf("pattern %q did not compile: %s", pattern, err)
+	}
+	if !matched {
+		t.Errorf("message did not match pattern. \nMessage: `test string`, \nPattern: %q, \ngot: %q", pattern, got)
+	}
+
+	l.SetFlag(Llevel | Ldate | Ltime)
+	l.Warn("test string")
+	pattern = "^" + RegLevel + RegTime + RegDate + "test string\n$" // 设置了 flag，order 才会生效
+	got = b.Bytes()
+	b.Reset()
+	matched, err = regexp.Match(pattern, got)
+	if err != nil {
+		t.Fatalf("pattern %q did not compile: %s", pattern, err)
+	}
+	if !matched {
+		t.Errorf("message did not match pattern. \nMessage: `test string`, \nPattern: %q, \ngot: %q", pattern, got)
+	}
+
+	l.AddFlag(Lmsgprefix)
+	l.SetPrefix(TEST_PREFIX)
+	l.Warn("test string")
+	pattern = "^" + RegLevel + RegTime + RegDate + RegPrefix + "test string\n$" // 设置了 flag，order 才会生效
+	got = b.Bytes()
+	b.Reset()
+	matched, err = regexp.Match(pattern, got)
+	if err != nil {
+		t.Fatalf("pattern %q did not compile: %s", pattern, err)
+	}
+	if !matched {
+		t.Errorf("message did not match pattern. \nMessage: `test string`, \nPattern: %q, \ngot: %q", pattern, got)
 	}
 }
 
 func TestUTCFlag(t *testing.T) {
 	var b bytes.Buffer
-	l := New(&b, InfoLevel, OPrefix("Boii: "), OFlag(Ldate|Ltime|LUTC))
+	l := New(&b, InfoLevel, OPrefix("Boii: "), OFlag(Ldate|Ltime|LUTC|Llevel))
 
 	now := time.Now().UTC()
 	l.Info("Hello")
+
 	want := fmt.Sprintf("%d/%.2d/%.2d %.2d:%.2d:%.2d "+_InfoLabel+"Hello\n",
 		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 	got := b.String()
