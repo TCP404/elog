@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -91,7 +92,7 @@ var tests = []tester{
 
 func testPrint(t *testing.T, name string, level logLevel, flag int, prefix string, order []logOrder, pattern string, useFormat bool) {
 	var buf bytes.Buffer
-	l := New(&buf, level, OFlag(flag), OPrefix(prefix), OOrder(order))
+	l := New(&buf, level, OFlag(flag), OPrefix(prefix), OOrder(order...))
 	if useFormat {
 		switch level {
 		case ErrorLevel:
@@ -143,6 +144,23 @@ func TestAll(t *testing.T) {
 	for _, tc := range tests {
 		testPrint(t, tc.name, tc.level, tc.flag, tc.prefix, tc.order, tc.pattern, true)
 		testPrint(t, tc.name, tc.level, tc.flag, tc.prefix, tc.order, tc.pattern, false)
+	}
+}
+
+func TestExtend(t *testing.T) {
+	var b bytes.Buffer
+	parent := New(&b, InfoLevel, OFlag(Llevel|Ldate), OPrefix("Test: "), OOrder(OrderDate, OrderLevel))
+	child := parent.Extend()
+	if !reflect.DeepEqual(parent, child) {
+		t.Errorf("logger child has some different with logger parent.\n child:  %q,\n parent: %q", child, parent)
+	}
+	child.SetOrder(OrderMsg, OrderLevel)
+	if reflect.DeepEqual(child, parent) {
+		t.Error("the change of logger child affected logger parent")
+	}
+	grandchild := child.Extend(OPrefix("Boii: "))
+	if grandchild.Prefix() != "Boii: " {
+		t.Errorf("logger grandchild's prefix expected: `Boii: `, but got: %v", grandchild.Prefix())
 	}
 }
 
@@ -264,7 +282,22 @@ func TestOrderSetting(t *testing.T) {
 	l.AddFlag(Lmsgprefix)
 	l.SetPrefix(TEST_PREFIX)
 	l.Warn("test string")
-	pattern = "^" + RegLevel + RegTime + RegDate + RegPrefix + "test string\n$" // 设置了 flag，order 才会生效
+	pattern = "^" + RegLevel + RegTime + RegDate + RegPrefix + "test string\n$" // 再次额外增加 flag，依然有效
+	got = b.Bytes()
+	b.Reset()
+	l.SubFlag(Lmsgprefix)
+	matched, err = regexp.Match(pattern, got)
+	if err != nil {
+		t.Fatalf("pattern %q did not compile: %s", pattern, err)
+	}
+	if !matched {
+		t.Errorf("message did not match pattern. \nMessage: `test string`, \nPattern: %q, \ngot: %q", pattern, got)
+	}
+
+	l.SetOrder(OrderTime, OrderLevel)
+	l.SetFlag(Llevel | Ltime)
+	l.Warn("test string")
+	pattern = "^" + RegTime + RegLevel + "test string\n$" // SetOrder 后应覆盖之前的 order
 	got = b.Bytes()
 	b.Reset()
 	matched, err = regexp.Match(pattern, got)

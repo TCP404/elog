@@ -197,7 +197,7 @@ func OName(name string) LogOption {
 	}
 }
 
-func OOrder(order []logOrder) LogOption {
+func OOrder(order ...logOrder) LogOption {
 	return func(logger *Log) {
 		logger.order = order
 	}
@@ -222,11 +222,12 @@ func (parent *Log) Extend(options ...LogOption) *Log {
 	if parent == nil {
 		parent = std
 	}
-	son.name = "SonBy" + parent.name
 	son.output = parent.output
 	son.level = parent.level
 	son.flag = parent.flag
 	son.prefix = parent.prefix
+	son.order = make([]logOrder, len(parent.order))
+	copy(son.order, parent.order)
 	for _, opt := range options {
 		opt(son)
 	}
@@ -249,7 +250,6 @@ func (l *Log) Name() string {
 	defer l.mu.Unlock()
 	return l.name
 }
-
 func (l *Log) Prefix() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -293,6 +293,7 @@ func (l *Log) SetFlag(flag int) {
 func (l *Log) SetOrder(orders ...logOrder) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.order = l.order[:0]
 	l.order = append(l.order, orders...)
 }
 
