@@ -164,6 +164,18 @@ func TestExtend(t *testing.T) {
 	}
 }
 
+func TestMethodChaining(t *testing.T) {
+	var b bytes.Buffer
+	parent := New(&b, InfoLevel).SetFlag(Llevel).SetName("chaining")
+	if parent.Flag() != Llevel || parent.Name() != "chaining" {
+		t.Errorf("the method chaining may have some problem when logger parent creating. parent: %q", parent)
+	}
+	child := parent.Extend().AddFlag(Ldate)
+	if child.Flag() != Llevel|Ldate {
+		t.Errorf("the method chaining may have some problem when logger child extending. child:  %q", child)
+	}
+}
+
 func TestOut(t *testing.T) {
 	const testString = "test"
 	var b bytes.Buffer

@@ -265,48 +265,56 @@ func (l *Log) Flag() int {
 	defer l.mu.Unlock()
 	return l.flag
 }
-func (l *Log) SetOutput(w io.Writer) {
+func (l *Log) SetOutput(w io.Writer) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.output = w
+	return l
 }
-func (l *Log) SetLevel(level logLevel) {
+func (l *Log) SetLevel(level logLevel) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.level = level
+	return l
 }
-func (l *Log) SetName(name string) {
+func (l *Log) SetName(name string) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.name = name
+	return l
 }
-func (l *Log) SetPrefix(prefix string) {
+func (l *Log) SetPrefix(prefix string) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.prefix = prefix
+	return l
 }
-func (l *Log) SetFlag(flag int) {
+func (l *Log) SetFlag(flag int) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.flag = flag
+	return l
 }
-func (l *Log) SetOrder(orders ...logOrder) {
+func (l *Log) SetOrder(orders ...logOrder) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.order = l.order[:0]
 	l.order = append(l.order, orders...)
+	return l
 }
 
 // Manipulate Flag
-func (l *Log) AddFlag(flag int) {
+func (l *Log) AddFlag(flag int) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.flag = l.flag | flag
+	return l
 }
-func (l *Log) SubFlag(flag int) {
+func (l *Log) SubFlag(flag int) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.flag = l.flag &^ flag
+	return l
 }
 
 // 这个方法仅限于 Out() 方法用，因为在 Out 方法中已经上锁了，所以这里不能再上锁
