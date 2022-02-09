@@ -85,13 +85,13 @@ func (l *Log) outputPrefix(flag *int) {
 	}
 }
 
-func (l *Log) outputMsg(written *bool, msg string) {
+func (l *Log) outputMsg(written *bool, level logLevel, msg string) {
 	if *written {
 		return
 	}
 
 	if l.flag&Lmsgcolor != 0 {
-		setColor(&l.buf, l.level)
+		setColor(&l.buf, level)
 	}
 	l.buf = append(l.buf, msg...)                 // 将打印内容填充到 buffer 中
 	if len(msg) == 0 || msg[len(msg)-1] != '\n' { // 如果打印内容为空或者内容末尾没有换行符，则追加换行符

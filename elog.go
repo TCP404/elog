@@ -11,15 +11,16 @@ import (
 
 type logLevel int
 
+// Fatal > Panic > Error > Warn > Info > Debug > Trace > Discard
 const (
-	FatalLevel logLevel = iota // 致命的错误: 表明程序遇到了致命的错误，必须马上终止运行。
-	PanicLevel                 // 致命的错误: 表明程序遇到了致命的错误，可以不马上终止运行，依赖 recover()。
-	ErrorLevel                 // 状态错误: 该错误发生后程序仍然可以运行，但是极有可能运行在某种非正常的状态下，导致无法完成全部既定的功能。
-	WarnLevel                  // 警告信息: 程序处理中遇到非法数据或者某种可能的错误。该错误是一过性的、可恢复的，不会影响程序继续运行，程序仍处在正常状态。
-	InfoLevel                  // 报告程序进度和状态信息: 一般这种信息都是一过性的，不会大量反复输出。例如：连接商用库成功后，可以打印一条连库成功的信息，便于跟踪程序进展信息。
-	DebugLevel                 // 终端查看、在线调试: 默认情况下会打印到终端输出，但是不会归档到日志文件。因此，一般用于开发者在程序当前启动窗口上，查看日志流水信息。
-	TraceLevel                 // 在线调试: 默认情况下，既不打印到终端也不输出到文件。此时，对程序运行效率几乎不产生影响。常用语 for 循环中调试
-	Discard
+	Discard    logLevel = iota
+	TraceLevel          // 在线调试: 默认情况下，既不打印到终端也不输出到文件。此时，对程序运行效率几乎不产生影响。常用语 for 循环中调试
+	DebugLevel          // 终端查看、在线调试: 默认情况下会打印到终端输出，但是不会归档到日志文件。因此，一般用于开发者在程序当前启动窗口上，查看日志流水信息。
+	InfoLevel           // 报告程序进度和状态信息: 一般这种信息都是一过性的，不会大量反复输出。例如：连接商用库成功后，可以打印一条连库成功的信息，便于跟踪程序进展信息。
+	WarnLevel           // 警告信息: 程序处理中遇到非法数据或者某种可能的错误。该错误是一过性的、可恢复的，不会影响程序继续运行，程序仍处在正常状态。
+	ErrorLevel          // 状态错误: 该错误发生后程序仍然可以运行，但是极有可能运行在某种非正常的状态下，导致无法完成全部既定的功能。
+	PanicLevel          // 致命的错误: 表明程序遇到了致命的错误，可以不马上终止运行，依赖 recover()。
+	FatalLevel          // 致命的错误: 表明程序遇到了致命的错误，必须马上终止运行。
 )
 
 const (
@@ -28,7 +29,7 @@ const (
 	_ErrorLabel = "\x1b[1;37;41m ERROR \x1b[0m "
 	_WarnLabel  = "\x1b[0;30;43m WARN  \x1b[0m "
 	_InfoLabel  = "\x1b[0;30;46m INFO  \x1b[0m "
-	_DebugLabel = "\x1b[0;30;44m DEBUG \x1b[0m "
+	_DebugLabel = "\x1b[0;37;44m DEBUG \x1b[0m "
 	_TraceLabel = "\x1b[0;30;42m TRACE \x1b[0m "
 )
 
@@ -103,7 +104,7 @@ type Logger interface {
 type Log struct {
 	mu     sync.Mutex
 	output io.Writer // 日志输出方式
-	level  logLevel  // 日志等级
+	level  logLevel  // 日志最低等级，低于这个等级的日志不会被打印
 	name   string    // 日志对象名称
 	flag   int       // 日志对象属性
 	prefix string    // 日志前缀
@@ -159,7 +160,7 @@ func (l *Log) Out(calldepth int, level logLevel, msg string) error {
 			case OrderPath:
 				l.outputPath(&unwriteFlag, file, line)
 			case OrderMsg:
-				l.outputMsg(&msgWritten, msg)
+				l.outputMsg(&msgWritten, level, msg)
 			}
 		}
 	}
@@ -170,7 +171,7 @@ func (l *Log) Out(calldepth int, level logLevel, msg string) error {
 	l.outputLevel(&unwriteFlag, level)
 	l.outputPath(&unwriteFlag, file, line)
 	l.outputPrefix(&unwriteFlag)
-	l.outputMsg(&msgWritten, msg)
+	l.outputMsg(&msgWritten, level, msg)
 
 	_, err := l.output.Write(l.buf)
 	return err
@@ -324,79 +325,79 @@ func subFlag(flag1 int, flag2 int) int {
 
 // Method Set
 func (l *Log) Fatal(v ...interface{}) {
-	if l.level >= FatalLevel {
+	if l.level <= FatalLevel {
 		l.Out(2, FatalLevel, fmt.Sprintln(v...))
 		os.Exit(1)
 	}
 }
 func (l *Log) Panic(v ...interface{}) {
-	if l.level >= PanicLevel {
+	if l.level <= PanicLevel {
 		s := fmt.Sprintln(v...)
 		l.Out(2, PanicLevel, s)
 		panic(s)
 	}
 }
 func (l *Log) Error(v ...interface{}) {
-	if l.level >= ErrorLevel {
+	if l.level <= ErrorLevel {
 		l.Out(2, ErrorLevel, fmt.Sprintln(v...))
 	}
 }
 func (l *Log) Warn(v ...interface{}) {
-	if l.level >= WarnLevel {
+	if l.level <= WarnLevel {
 		l.Out(2, WarnLevel, fmt.Sprintln(v...))
 	}
 }
 func (l *Log) Info(v ...interface{}) {
-	if l.level >= InfoLevel {
+	if l.level <= InfoLevel {
 		l.Out(2, InfoLevel, fmt.Sprintln(v...))
 	}
 }
 func (l *Log) Debug(v ...interface{}) {
-	if l.level >= DebugLevel {
+	if l.level <= DebugLevel {
 		l.Out(2, DebugLevel, fmt.Sprintln(v...))
 	}
 }
 func (l *Log) Trace(v ...interface{}) {
-	if l.level >= TraceLevel {
+	if l.level <= TraceLevel {
 		l.Out(2, TraceLevel, fmt.Sprintln(v...))
 	}
 }
 
 func (l *Log) Fatalf(format string, v ...interface{}) {
-	if l.level >= FatalLevel {
+	if l.level <= FatalLevel {
 		l.Out(2, FatalLevel, fmt.Sprintf(format, v...))
 		os.Exit(1)
 	}
 }
 func (l *Log) Panicf(format string, v ...interface{}) {
-	if l.level >= PanicLevel {
+	if l.level <= PanicLevel {
 		s := fmt.Sprintf(format, v...)
 		l.Out(2, PanicLevel, s)
 		panic(s)
 	}
 }
 func (l *Log) Errorf(format string, v ...interface{}) {
-	if l.level >= ErrorLevel {
+	if l.level <= ErrorLevel {
 		l.Out(2, ErrorLevel, fmt.Sprintf(format, v...))
 	}
 }
 func (l *Log) Warnf(format string, v ...interface{}) {
-	if l.level >= WarnLevel {
+	if l.level <= WarnLevel {
 		l.Out(2, WarnLevel, fmt.Sprintf(format, v...))
 	}
 }
 func (l *Log) Infof(format string, v ...interface{}) {
-	if l.level >= InfoLevel {
+	if l.level <= InfoLevel {
 		l.Out(2, InfoLevel, fmt.Sprintf(format, v...))
 	}
 }
 func (l *Log) Debugf(format string, v ...interface{}) {
-	if l.level >= DebugLevel {
+	if l.level <= DebugLevel {
 		l.Out(2, DebugLevel, fmt.Sprintf(format, v...))
 	}
 }
 func (l *Log) Tracef(format string, v ...interface{}) {
-	if l.level >= TraceLevel {
+	if l.level <= TraceLevel {
 		l.Out(2, TraceLevel, fmt.Sprintf(format, v...))
 	}
 }
