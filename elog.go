@@ -102,7 +102,7 @@ type Logger interface {
 }
 
 type Log struct {
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	output io.Writer // 日志输出方式
 	level  logLevel  // 日志最低等级，低于这个等级的日志不会被打印
 	name   string    // 日志对象名称
@@ -237,33 +237,33 @@ func (parent *Log) Extend(options ...LogOption) *Log {
 
 // Getter & Setter
 func (l *Log) Output() io.Writer {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.output
 }
 func (l *Log) Level() logLevel {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.level
 }
 func (l *Log) Name() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.name
 }
 func (l *Log) Prefix() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.prefix
 }
 func (l *Log) Order() []logOrder {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.order
 }
 func (l *Log) Flag() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.flag
 }
 func (l *Log) SetOutput(w io.Writer) *Log {
