@@ -49,7 +49,7 @@ var tests = []tester{
 		in{name: "t3", level: InfoLevel, flag: Lmsgprefix, prefix: TEST_PREFIX},
 		RegPrefix},
 	{
-		in{name: "t4", level: InfoLevel, flag: Llevel},
+		in{name: "t4", level: InfoLevel, flag: Llevel | LlevelLabelColor},
 		RegLevel},
 	{
 		in{name: "t5", level: InfoLevel, flag: Ldate},
@@ -76,23 +76,23 @@ var tests = []tester{
 		in{name: "t11", level: ErrorLevel, flag: Llongfile | Lshortfile},
 		RegShortfile},
 
-	{in{name: "t12", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | Llongfile, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegLongfile},
-	{in{name: "t13", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | Lshortfile, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegShortfile},
-	{in{name: "t14", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | Llongfile | Lmsgprefix, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegLongfile + RegPrefix},
-	{in{name: "t15", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | Lshortfile | Lmsgprefix, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegShortfile + RegPrefix},
+	{in{name: "t12", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | LlevelLabelColor | Llongfile, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegLongfile},
+	{in{name: "t13", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | LlevelLabelColor | Lshortfile, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegShortfile},
+	{in{name: "t14", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | LlevelLabelColor | Llongfile | Lmsgprefix, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegLongfile + RegPrefix},
+	{in{name: "t15", level: ErrorLevel, flag: Ldate | Ltime | Lmicroseconds | Llevel | LlevelLabelColor | Lshortfile | Lmsgprefix, prefix: TEST_PREFIX}, RegDate + RegTime + RegMicroseconds + RegLevel + RegShortfile + RegPrefix},
 
 	{ // test order
 		in{name: "t16", level: ErrorLevel, flag: Lmsgprefix | Ldate | Lshortfile, prefix: TEST_PREFIX, order: []logOrder{OrderLevel, OrderPrefix, OrderDate, OrderPath}},
 		RegPrefix + RegDate + RegShortfile},
 
 	{
-		in{name: "t17", level: ErrorLevel, flag: Lmsgprefix | Ldate | Lshortfile | Llevel, prefix: TEST_PREFIX, order: []logOrder{OrderLevel, OrderPrefix, OrderDate, OrderPath}},
+		in{name: "t17", level: ErrorLevel, flag: Lmsgprefix | Ldate | Lshortfile | Llevel | LlevelLabelColor, prefix: TEST_PREFIX, order: []logOrder{OrderLevel, OrderPrefix, OrderDate, OrderPath}},
 		RegLevel + RegPrefix + RegDate + RegShortfile},
 }
 
 func testPrint(t *testing.T, name string, level logLevel, flag int, prefix string, order []logOrder, pattern string, useFormat bool) {
 	var buf bytes.Buffer
-	l := New(&buf, level, OFlag(flag), OPrefix(prefix), OOrder(order...))
+	l := New(level, OOutput(&buf), OFlag(flag), OPrefix(prefix), OOrder(order...))
 	if useFormat {
 		switch level {
 		case ErrorLevel:
@@ -129,7 +129,7 @@ func testPrint(t *testing.T, name string, level logLevel, flag int, prefix strin
 		t.Errorf(`%s: pattern did not compile: %q`, name, err)
 	}
 	if !matched {
-		t.Errorf(`%s: log output want: %s[ %q ]%s , got %s[ %q ]%s`, name, blue, pattern, color_, green, got, color_)
+		t.Errorf(`%s: log output want: %s[ %q ]%s , got %s[ %q ]%s`, name, _blue, pattern, color_, _green, got, color_)
 	}
 	SetOutput(os.Stderr)
 }
@@ -149,7 +149,7 @@ func TestAll(t *testing.T) {
 
 func TestExtend(t *testing.T) {
 	var b bytes.Buffer
-	parent := New(&b, InfoLevel, OFlag(Llevel|Ldate), OPrefix("Test: "), OOrder(OrderDate, OrderLevel))
+	parent := New(InfoLevel, OOutput(&b), OFlag(Llevel|Ldate), OPrefix("Test: "), OOrder(OrderDate, OrderLevel))
 	child := parent.Extend()
 	if !reflect.DeepEqual(parent, child) {
 		t.Errorf("logger child has some different with logger parent.\n child:  %q,\n parent: %q", child, parent)
@@ -166,7 +166,7 @@ func TestExtend(t *testing.T) {
 
 func TestMethodChaining(t *testing.T) {
 	var b bytes.Buffer
-	parent := New(&b, InfoLevel).SetFlag(Llevel).SetName("chaining")
+	parent := New(InfoLevel).SetFlag(Llevel).SetName("chaining").SetOutput(&b)
 	if parent.Flag() != Llevel || parent.Name() != "chaining" {
 		t.Errorf("the method chaining may have some problem when logger parent creating. parent: %q", parent)
 	}
@@ -179,17 +179,17 @@ func TestMethodChaining(t *testing.T) {
 func TestOut(t *testing.T) {
 	const testString = "test"
 	var b bytes.Buffer
-	l := New(&b, InfoLevel)
+	l := New(InfoLevel, OOutput(&b))
 	l.AddFlag(Llevel)
 	l.Warn(testString)
-	if expect := _WarnLabel + testString + "\n"; b.String() != expect {
+	if expect := levelMap[WarnLevel].levelLabel + testString + "\n"; b.String() != expect {
 		t.Errorf("log output should match %q, but got %q", expect, b.String())
 	}
 }
 
 func TestOutRace(t *testing.T) {
 	var b bytes.Buffer
-	l := New(&b, InfoLevel)
+	l := New(InfoLevel, OOutput(&b))
 	for i := 0; i < 100; i++ {
 		go func() {
 			l.SetFlag(0)
@@ -199,7 +199,7 @@ func TestOutRace(t *testing.T) {
 
 func TestFlagSetting(t *testing.T) {
 	var b bytes.Buffer
-	l := New(&b, InfoLevel, OFlag(LstdFlags))
+	l := New(InfoLevel, OOutput(&b), OFlag(LstdFlags))
 
 	f := l.Flag()
 	if f != LstdFlags {
@@ -227,7 +227,7 @@ func TestFlagSetting(t *testing.T) {
 
 func TestPrefixSetting(t *testing.T) {
 	var b bytes.Buffer
-	l := New(&b, InfoLevel, OFlag(LstdFlags|Lmsgprefix), OPrefix("Test: "))
+	l := New(InfoLevel, OOutput(&b), OFlag(LstdFlags|Lmsgprefix), OPrefix("Test: "))
 
 	p := l.Prefix()
 	if p != "Test: " {
@@ -253,7 +253,7 @@ func TestPrefixSetting(t *testing.T) {
 
 func TestOrderSetting(t *testing.T) {
 	var b bytes.Buffer
-	l := New(&b, InfoLevel)
+	l := New(InfoLevel, OOutput(&b))
 
 	o := l.Order()
 	if len(o) != 0 {
@@ -278,7 +278,7 @@ func TestOrderSetting(t *testing.T) {
 		t.Errorf("message did not match pattern. \nMessage: `test string`, \nPattern: %q, \ngot: %q", pattern, got)
 	}
 
-	l.SetFlag(Llevel | Ldate | Ltime)
+	l.SetFlag(Llevel | LlevelLabelColor | Ldate | Ltime)
 	l.Warn("test string")
 	pattern = "^" + RegLevel + RegTime + RegDate + "test string\n$" // 设置了 flag，order 才会生效
 	got = b.Bytes()
@@ -307,7 +307,7 @@ func TestOrderSetting(t *testing.T) {
 	}
 
 	l.SetOrder(OrderTime, OrderLevel)
-	l.SetFlag(Llevel | Ltime)
+	l.SetFlag(Llevel | LlevelLabelColor | Ltime)
 	l.Warn("test string")
 	pattern = "^" + RegTime + RegLevel + "test string\n$" // SetOrder 后应覆盖之前的 order
 	got = b.Bytes()
@@ -323,12 +323,13 @@ func TestOrderSetting(t *testing.T) {
 
 func TestUTCFlag(t *testing.T) {
 	var b bytes.Buffer
-	l := New(&b, InfoLevel, OPrefix("Boii: "), OFlag(Ldate|Ltime|LUTC|Llevel))
+	l := New(InfoLevel, OOutput(&b), OPrefix("Boii: "), OFlag(Ldate|Ltime|LUTC|Llevel|LlevelLabelColor))
 
 	now := time.Now().UTC()
 	l.Info("Hello")
 
-	want := fmt.Sprintf("%d/%.2d/%.2d %.2d:%.2d:%.2d "+_InfoLabel+"Hello\n",
+	label := levelMap[InfoLevel].levelLabelColor + levelMap[InfoLevel].levelLabel + color_
+	want := fmt.Sprintf("%d/%.2d/%.2d %.2d:%.2d:%.2d "+label+"Hello\n",
 		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 	got := b.String()
 	if got == want {
@@ -337,7 +338,7 @@ func TestUTCFlag(t *testing.T) {
 
 	// 可能会有细微时差，所以加一秒再试一次
 	now = now.Add(time.Second)
-	want = fmt.Sprintf("%d/%.2d/%.2d %.2d:%.2d:%.2d "+_InfoLabel+"Hello\n",
+	want = fmt.Sprintf("%d/%.2d/%.2d %.2d:%.2d:%.2d "+label+"Hello\n",
 		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 	got = b.String()
 	if got == want {
@@ -349,7 +350,7 @@ func TestUTCFlag(t *testing.T) {
 
 func TestEmptyPrintCreatesLine(t *testing.T) {
 	var b bytes.Buffer
-	l := New(&b, InfoLevel, OPrefix("Boii:"), OFlag(Ldate|Ltime|Lmsgprefix))
+	l := New(InfoLevel, OOutput(&b), OPrefix("Boii:"), OFlag(Ldate|Ltime|Lmsgprefix))
 	l.Info()
 	l.Info("non-empty")
 	output := b.String()
@@ -378,7 +379,7 @@ func BenchmarkItoa(b *testing.B) {
 func BenchmarkPrint(b *testing.B) {
 	const testString = "Hello"
 	var buf bytes.Buffer
-	l := New(&buf, InfoLevel, OFlag(LstdFlags))
+	l := New(InfoLevel, OFlag(LstdFlags))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.Reset()
@@ -389,7 +390,7 @@ func BenchmarkPrint(b *testing.B) {
 func BenchmarkPrintNoFlag(b *testing.B) {
 	const testString = "Hello"
 	var buf bytes.Buffer
-	l := New(&buf, InfoLevel)
+	l := New(InfoLevel, OOutput(&buf))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.Reset()

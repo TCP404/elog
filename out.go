@@ -69,7 +69,12 @@ func (l *Log) outputLevel(flag *int, level logLevel) {
 	// 处理等级前缀
 	tmpFlag := *flag
 	if tmpFlag&Llevel != 0 {
-		l.buf = append(l.buf, levelMap[level].levelLabel...)
+		label := levelMap[level].levelLabel
+		if tmpFlag&LlevelLabelColor != 0 {
+			label = levelMap[level].levelLabelColor + levelMap[level].levelLabel + color_
+			*flag = subFlag(*flag, LlevelLabelColor)
+		}
+		l.buf = append(l.buf, label...)
 		addSpace(&l.buf)
 		*flag = subFlag(*flag, Llevel)
 	}
@@ -89,24 +94,37 @@ func (l *Log) outputMsg(written *bool, level logLevel, msg string) {
 	if *written {
 		return
 	}
-
 	if l.flag&Lmsgcolor != 0 {
 		setColor(&l.buf, level)
+		defer unsetColor(&l.buf)
 	}
-	l.buf = append(l.buf, msg...)                 // 将打印内容填充到 buffer 中
-	if len(msg) == 0 || msg[len(msg)-1] != '\n' { // 如果打印内容为空或者内容末尾没有换行符，则追加换行符
-		l.buf = append(l.buf, '\n')
-	}
-	if l.flag&Lmsgcolor != 0 {
-		unsetColor(&l.buf)
-	}
+	l.buf = append(l.buf, msg...) // 将打印内容填充到 buffer 中
+	addSpace(&l.buf)
 	*written = true
 }
 
 func addSpace(buf *[]byte) {
 	b := *buf
+	if len(b) == 0 {
+		return
+	}
+	if b[len(b)-1] == '\n' {
+		*buf = append(b[:len(b)-1], ' ')
+		return
+	}
 	if b[len(b)-1] != ' ' {
 		*buf = append(*buf, ' ')
+	}
+}
+
+func setNewLine(buf *[]byte) {
+	b := *buf
+	if len(b) == 0 || b[len(b)-1] != '\n' { // 如果打印内容为空或者内容末尾没有换行符，则追加换行符
+		if b[len(b)-1] == ' ' { // 末尾是空格的情况，替换成换行符
+			*buf = append(b[:len(b)-1], '\n')
+			return
+		}
+		*buf = append(*buf, '\n')
 	}
 }
 

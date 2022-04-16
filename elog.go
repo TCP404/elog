@@ -24,37 +24,47 @@ const (
 )
 
 const (
-	_FatalLabel = "\x1b[0;30;45m FATAL \x1b[0m "
-	_PanicLabel = "\x1b[1;37;45m PANIC \x1b[0m "
-	_ErrorLabel = "\x1b[1;37;41m ERROR \x1b[0m "
-	_WarnLabel  = "\x1b[0;30;43m WARN  \x1b[0m "
-	_InfoLabel  = "\x1b[0;30;46m INFO  \x1b[0m "
-	_DebugLabel = "\x1b[0;37;44m DEBUG \x1b[0m "
-	_TraceLabel = "\x1b[0;30;42m TRACE \x1b[0m "
+	_FatalLabel = "FATAL"
+	_PanicLabel = "PANIC"
+	_ErrorLabel = "ERROR"
+	_WarnLabel  = "WARN "
+	_InfoLabel  = "INFO "
+	_DebugLabel = "DEBUG"
+	_TraceLabel = "TRACE"
 )
 
 const (
-	red     = "\x1b[1;31;40m"
-	green   = "\x1b[1;32;40m"
-	yellow  = "\x1b[1;33;40m"
-	blue    = "\x1b[1;34;40m"
-	magenta = "\x1b[1;35;40m"
-	cyan    = "\x1b[1;36;40m"
-	while   = "\x1b[1;37;40m"
-	color_  = "\x1b[0m"
+	_red     = "\x1b[1;31;40m "
+	_green   = "\x1b[1;32;40m "
+	_yellow  = "\x1b[1;33;40m "
+	_blue    = "\x1b[1;34;40m "
+	_magenta = "\x1b[1;35;40m "
+	_cyan    = "\x1b[1;36;40m "
+	_while   = "\x1b[1;37;40m "
+
+	Fatal_ = "\x1b[0;30;45m "
+	Panic_ = "\x1b[1;37;45m "
+	Error_ = "\x1b[1;37;41m "
+	Warn_  = "\x1b[0;30;43m "
+	Info_  = "\x1b[0;30;46m "
+	Debug_ = "\x1b[0;37;44m "
+	Trace_ = "\x1b[0;30;42m "
+
+	color_ = " \x1b[0m "
 )
 
 var levelMap = map[logLevel]struct {
-	levelLabel string
-	levelColor string
+	levelLabel      string
+	levelLabelColor string
+	levelColor      string
 }{
-	FatalLevel: {_FatalLabel, magenta},
-	PanicLevel: {_PanicLabel, magenta},
-	ErrorLevel: {_ErrorLabel, red},
-	WarnLevel:  {_WarnLabel, yellow},
-	InfoLevel:  {_InfoLabel, cyan},
-	DebugLevel: {_DebugLabel, blue},
-	TraceLevel: {_TraceLabel, green},
+	FatalLevel: {_FatalLabel, Fatal_, _magenta},
+	PanicLevel: {_PanicLabel, Panic_, _magenta},
+	ErrorLevel: {_ErrorLabel, Error_, _red},
+	WarnLevel:  {_WarnLabel, Warn_, _yellow},
+	InfoLevel:  {_InfoLabel, Info_, _cyan},
+	DebugLevel: {_DebugLabel, Debug_, _blue},
+	TraceLevel: {_TraceLabel, Trace_, _green},
 }
 
 // Flag set include setting of date, time, path, prefix, level, msg
@@ -68,7 +78,8 @@ const (
 	Lmsgprefix
 	Lmsgcolor
 	Llevel
-	LstdFlags = Ldate | Ltime | Lshortfile | Llevel
+	LlevelLabelColor
+	LstdFlags = Ldate | Ltime | Lshortfile | Llevel | LlevelLabelColor
 )
 
 // Content Order (date、time、level、prefix、filepath、msg)
@@ -102,7 +113,7 @@ type Logger interface {
 }
 
 type Log struct {
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	output io.Writer // 日志输出方式
 	level  logLevel  // 日志最低等级，低于这个等级的日志不会被打印
 	name   string    // 日志对象名称
@@ -173,11 +184,12 @@ func (l *Log) Out(calldepth int, level logLevel, msg string) error {
 	l.outputPrefix(&unwriteFlag)
 	l.outputMsg(&msgWritten, level, msg)
 
+	setNewLine(&l.buf)
 	_, err := l.output.Write(l.buf)
 	return err
 }
 
-// Create Logger
+// Create Logger Option
 type LogOption func(logger *Log)
 
 func OFlag(flag int) LogOption {
@@ -204,12 +216,27 @@ func OOrder(order ...logOrder) LogOption {
 	}
 }
 
-func New(w io.Writer, level logLevel, options ...LogOption) *Log {
+func OOutput(w1 io.Writer, w ...io.Writer) LogOption {
+	return func(logger *Log) {
+		if w1 == nil {
+			w1 = os.Stderr
+		}
+		w = append(w, w1)
+		if logger.output != nil {
+			w = append(w, logger.output)
+		}
+		logger.output = io.MultiWriter(w...)
+	}
+}
+
+func New(level logLevel, options ...LogOption) *Log {
 	l := new(Log)
-	l.output = w
 	l.level = level
 	for _, opt := range options {
 		opt(l)
+	}
+	if l.output == nil {
+		l.output = os.Stderr
 	}
 	return l
 }
@@ -237,39 +264,42 @@ func (parent *Log) Extend(options ...LogOption) *Log {
 
 // Getter & Setter
 func (l *Log) Output() io.Writer {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.output
 }
 func (l *Log) Level() logLevel {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.level
 }
 func (l *Log) Name() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.name
 }
 func (l *Log) Prefix() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.prefix
 }
 func (l *Log) Order() []logOrder {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.order
 }
 func (l *Log) Flag() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.flag
 }
-func (l *Log) SetOutput(w io.Writer) *Log {
+func (l *Log) SetOutput(w1 io.Writer, w ...io.Writer) *Log {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.output = w
+	if w1 == nil {
+		w1 = os.Stderr
+	}
+	l.output = io.MultiWriter(append(w, w1)...)
 	return l
 }
 func (l *Log) SetLevel(level logLevel) *Log {
@@ -405,7 +435,7 @@ func (l *Log) Tracef(format string, v ...interface{}) {
 // # ============================== Default global object ======================================
 func Default() *Log { return std }
 
-var std *Log = New(os.Stderr, InfoLevel, OName("Global"), OPrefix("[eLog]"), OFlag(LstdFlags))
+var std *Log = New(InfoLevel, OName("Global"), OPrefix("[eLog]"), OFlag(LstdFlags))
 
 var (
 	// Getter & Setter
@@ -421,6 +451,8 @@ var (
 	SetPrefix = std.SetPrefix
 	SetOrder  = std.SetOrder
 	SetFlag   = std.SetFlag
+	AddFlag   = std.AddFlag
+	SubFlag   = std.SubFlag
 
 	// Method Set
 	Fatal = std.Fatal
