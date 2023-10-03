@@ -26,14 +26,16 @@ func ExamplePrint() {
 
 func ExampleSetOrder() {
 	var b bytes.Buffer
-	l := New(InfoLevel, OOutput(&b), OPrefix("Test: "),
+	l := New(
+		InfoLevel, OOutput(&b), OPrefix("Test: "),
 		OFlag(Lshortfile|Lmsgprefix),
-		OOrder(OrderPrefix, OrderMsg, OrderPath))
+		OOrder(OrderPrefix, OrderMsg, OrderPath),
+	)
 	l.Info("You can set the output order by SetOrder().")
 	fmt.Println(b.String())
 
 	// Output:
-	// Test: You can set the output order by SetOrder(). example_test.go:32
+	// Test: You can set the output order by SetOrder(). example_test.go:34
 }
 
 func ExampleSetLevel() {
@@ -47,9 +49,9 @@ func ExampleSetLevel() {
 	fmt.Println(b.String())
 
 	// Output:
-	// example_test.go:43 Info level message will be printed when you set the "InfoLevel"
-	// example_test.go:45 Warn level message will be printed because it is higher than Info level
-	// example_test.go:46 Error level as well
+	// example_test.go:45 Info level message will be printed when you set the "InfoLevel"
+	// example_test.go:47 Warn level message will be printed because it is higher than Info level
+	// example_test.go:48 Error level as well
 }
 
 func ExampleSetOutput() {
@@ -69,9 +71,22 @@ func ExampleSetOutput() {
 	fmt.Println(b2.String())
 
 	// Output:
-	// example_test.go:61 This is single output example
+	// example_test.go:63 This is single output example
 	//
-	// example_test.go:67 This is multiple output example
+	// example_test.go:69 This is multiple output example
 	//
-	// example_test.go:67 This is multiple output example
+	// example_test.go:69 This is multiple output example
+}
+
+func ExampleDefault() {
+	var b1 bytes.Buffer
+	SetOutput(&b1).SetFlag(Lshortfile)
+	Info(`This is the default logger. It is often used for global logging.`)
+	SetLevel(DebugLevel)
+	Debug(`You can change the level of default logger by SetLevel().`)
+
+	fmt.Println(b1.String())
+	// Output:
+	// example_test.go:84 This is the default logger. It is often used for global logging.
+	// example_test.go:86 You can change the level of default logger by SetLevel().
 }
